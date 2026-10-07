@@ -47,7 +47,10 @@ async function lookup(value,network,kind){
   try{
     if(!/^[1-9A-HJ-NP-Za-km-z]{32,88}$/.test(value))throw Error('Enter a valid base58 Solana address or signature.');
     const data=await rpc(kind,value,network);if(ticket!==sequence)return;
-    if(kind==='signature')render(data,{source:'Live RPC · finalized · '+(['127.0.0.1','localhost'].includes(location.hostname)?'Solana public endpoint':network==='mainnet'?'PublicNode':'Solana public endpoint'),network});
+    if(kind==='signature'){
+      if(data.result && data.result.transaction?.signatures?.[0]!==value)throw Error('RPC returned a different transaction signature. No receipt generated.');
+      render(data,{source:'Live RPC · finalized · '+(['127.0.0.1','localhost'].includes(location.hostname)?'Solana public endpoint':network==='mainnet'?'PublicNode':'Solana public endpoint'),network});
+    }
     else{
       if(!Array.isArray(data.result))throw Error('Unexpected transaction history response.');
       $('history').hidden=false;$('empty').hidden=true;$('historylist').replaceChildren();
@@ -64,6 +67,7 @@ $('export').addEventListener('click',async()=>{
   const saved=current,raw=original;if(!saved)return;
   const evidenceText=JSON.stringify(raw);
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(evidenceText));
+  if(current!==saved)return;
   const bundle={receipt:saved,evidence:raw,evidenceSha256:Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join(''),hashScope:'UTF-8 JSON.stringify(evidence); verifies this exported artifact, not chain authenticity',exportedAt:new Date().toISOString()};
   const text=JSON.stringify(bundle,null,2);const link=el('a','Save generated receipt JSON ↓');link.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));link.download='clearstep-receipt.json';
   const previous=$('exportfile').querySelector('a');if(previous)URL.revokeObjectURL(previous.href);
