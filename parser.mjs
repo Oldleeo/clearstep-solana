@@ -38,7 +38,7 @@ export function explain(input, context = {}) {
   const tx = Object.hasOwn(input ?? {}, 'result') ? input.result : input;
   if (!tx) throw Error('Transaction not found at finalized commitment. Check the network or try later.');
   const message = tx.transaction?.message, meta = tx.meta;
-  if (!message || !Array.isArray(message.accountKeys) || !Array.isArray(message.instructions)) throw Error('Expected getTransaction JSON with jsonParsed encoding.');
+  if (!message || !Array.isArray(message.accountKeys) || !message.accountKeys.length || !Array.isArray(message.instructions)) throw Error('Expected getTransaction JSON with jsonParsed encoding.');
   if (!meta || !Object.hasOwn(meta, 'err')) throw Error('Execution metadata is missing; cannot confirm an outcome.');
   let keys = message.accountKeys.map(k => typeof k === 'string' ? k : k.pubkey);
   if (message.accountKeys.every(k => typeof k === 'string')) keys = keys.concat(meta.loadedAddresses?.writable ?? [], meta.loadedAddresses?.readonly ?? []);
@@ -91,9 +91,11 @@ export function explain(input, context = {}) {
     group.instructions.forEach((ix,j) => instruction(ix, 'meta.innerInstructions[parent='+group.index+'].instructions['+j+']'));
   }
   const fee = amount(integer(meta.fee));
+  notes.unshift('Fee payer: '+keys[0]+'. Signature: '+(tx.transaction.signatures?.[0]??'not supplied')+'. Slot: '+String(tx.slot??'not supplied')+'.');
   const unknown = actions.filter(a => a.attention === 'unknown').length;
   if (unknown) notes.push(unknown + ' instruction(s) remain unexplained. Known inner transfers do not explain the enclosing program.');
   notes.push('Net balance changes include network fees, rent, account creation/closure, and transfers. They are not a profit calculation. No token price or USD value is assumed.');
+  notes.push('Wrapped SOL token changes can overlap native account balance changes. Do not sum native and token rows blindly.');
   notes.push('No current token-account allowance query, pre-sign simulation, or security verdict is provided. Token-2022 extensions are not comprehensively decoded.');
   return {schema: 'clearstep.receipt.v1', source: context.source ?? 'Imported JSON (unverified source)', network: context.network ?? 'Not independently verified', signature: tx.transaction.signatures?.[0] ?? null, slot: String(tx.slot ?? ''), blockTime: tx.blockTime ?? null, outcome: failed ? 'Failed' : 'Succeeded', error: meta.err, fee, feePayer: keys[0], actions, changes, unknown, notes};
 }
