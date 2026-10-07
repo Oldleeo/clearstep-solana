@@ -14,7 +14,7 @@ node server.mjs
 node --test
 ```
 
-The `public` folder can also be served as a static website. Static hosting queries Solana public RPC directly; the localhost server provides a same-origin RPC proxy. Public RPC can throttle or reject traffic, so local JSON import and clearly labeled synthetic examples are available.
+The `public` folder can also be served as a static website. Static mainnet hosting queries PublicNode's Solana endpoint directly (the Solana Foundation endpoint rejected browser requests with HTTP 403 in testing); devnet uses the Solana public endpoint. The localhost server provides a same-origin proxy to Solana public endpoints. The source provider is named in live receipts. Public RPC can throttle or reject traffic, so local JSON import and clearly labeled synthetic examples are available.
 
 ## What works
 

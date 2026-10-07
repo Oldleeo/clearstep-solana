@@ -22,7 +22,7 @@ export function makeServer() {
   let inFlight = 0; let last = 0;
   return createServer(async(req,res)=> {
     res.setHeader('X-Content-Type-Options','nosniff'); res.setHeader('Cache-Control','no-store');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.mainnet-beta.solana.com https://api.devnet.solana.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.mainnet-beta.solana.com https://api.devnet.solana.com https://solana-rpc.publicnode.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
     const url = new URL(req.url,'http://localhost');
     if (url.pathname === '/api/rpc' && req.method === 'POST') {
       if (req.headers.origin && !/^http:\/\/(localhost|127\.0\.0\.1):4177$/.test(req.headers.origin)) {res.writeHead(403);res.end();return;}

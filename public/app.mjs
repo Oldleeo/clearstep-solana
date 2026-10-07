@@ -2,11 +2,12 @@ import {explain,losslessParse} from './parser.mjs';
 import {fixture} from './fixtures.mjs';
 const $ = id=>document.getElementById(id);
 let current, original, sequence=0;
+function clearExport(){const previous=$('exportfile').querySelector('a');if(previous)URL.revokeObjectURL(previous.href);$('exportfile').replaceChildren();$('exporttext').textContent='';$('exportproof').hidden=true;}
 function el(tag,text,cls){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;}
 function status(text,error=false){$('status').textContent=text;$('status').className=error?'error':'';}
 async function rpc(kind,value,network) {
   const local=['127.0.0.1','localhost'].includes(location.hostname);
-  const url=local?'/api/rpc':network==='mainnet'?'https://api.mainnet-beta.solana.com':'https://api.devnet.solana.com';
+  const url=local?'/api/rpc':network==='mainnet'?'https://solana-rpc.publicnode.com':'https://api.devnet.solana.com';
   const body=local?{kind,value,network}:{jsonrpc:'2.0',id:1,method:kind==='address'?'getSignaturesForAddress':'getTransaction',params:kind==='address'?[value,{limit:10,commitment:'finalized'}]:[value,{encoding:'jsonParsed',commitment:'finalized',maxSupportedTransactionVersion:0}]};
   const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
   if(!response.ok)throw Error('RPC lookup returned HTTP '+response.status+'. Try later or import saved JSON.');
@@ -14,6 +15,7 @@ async function rpc(kind,value,network) {
 }
 function render(data,context) {
   const receipt=explain(data,context);current=receipt;original=data;
+  clearExport();
   $('receipt').hidden=false;$('empty').hidden=true;$('history').hidden=true;
   $('source').textContent=receipt.source+' · '+receipt.network;
   $('summary').replaceChildren();
@@ -41,11 +43,11 @@ function render(data,context) {
 async function lookup(value,network,kind){
   const ticket=++sequence;$('inspect').disabled=true;status('Reading finalized '+network+' evidence…');
   // Hide a prior receipt while loading: never show it under a new query.
-  $('receipt').hidden=true;$('history').hidden=true;current=null;
+  $('receipt').hidden=true;$('history').hidden=true;current=null;clearExport();
   try{
     if(!/^[1-9A-HJ-NP-Za-km-z]{32,88}$/.test(value))throw Error('Enter a valid base58 Solana address or signature.');
     const data=await rpc(kind,value,network);if(ticket!==sequence)return;
-    if(kind==='signature')render(data,{source:'Live Solana RPC · finalized',network});
+    if(kind==='signature')render(data,{source:'Live RPC · finalized · '+(['127.0.0.1','localhost'].includes(location.hostname)?'Solana public endpoint':network==='mainnet'?'PublicNode':'Solana public endpoint'),network});
     else{
       if(!Array.isArray(data.result))throw Error('Unexpected transaction history response.');
       $('history').hidden=false;$('empty').hidden=true;$('historylist').replaceChildren();
@@ -56,12 +58,14 @@ async function lookup(value,network,kind){
   finally{if(ticket===sequence)$('inspect').disabled=false;}
 }
 $('lookup').addEventListener('submit',event=>{event.preventDefault();const value=$('value').value.trim();lookup(value,$('network').value,value.length<=44?'address':'signature');});
-for(const button of document.querySelectorAll('[data-demo]'))button.addEventListener('click',()=>{sequence++;$('inspect').disabled=false;render(fixture(button.dataset.demo),{source:'Synthetic example · '+button.dataset.demo,network:'Not a chain transaction'});});
-$('import').addEventListener('click',()=>{sequence++;$('inspect').disabled=false;$('receipt').hidden=true;current=null;try{if($('json').value.length>5_000_000)throw Error('Import exceeds 5 MB.');render(losslessParse($('json').value),{source:'Imported JSON (unverified source)'});}catch(error){status(error.message,true);}});
+for(const button of document.querySelectorAll('[data-demo]'))button.addEventListener('click',()=>{sequence++;$('inspect').disabled=false;$('value').value='';render(fixture(button.dataset.demo),{source:'Synthetic example · '+button.dataset.demo,network:'Not a chain transaction'});});
+$('import').addEventListener('click',()=>{sequence++;$('inspect').disabled=false;$('receipt').hidden=true;current=null;clearExport();try{if($('json').value.length>5_000_000)throw Error('Import exceeds 5 MB.');render(losslessParse($('json').value),{source:'Imported JSON (unverified source)'});}catch(error){status(error.message,true);}});
 $('export').addEventListener('click',async()=>{
   const saved=current,raw=original;if(!saved)return;
   const evidenceText=JSON.stringify(raw);
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(evidenceText));
   const bundle={receipt:saved,evidence:raw,evidenceSha256:Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join(''),hashScope:'UTF-8 JSON.stringify(evidence); verifies this exported artifact, not chain authenticity',exportedAt:new Date().toISOString()};
-  const link=el('a');link.href=URL.createObjectURL(new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'}));link.download='clearstep-receipt.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);status('Evidence bundle downloaded with a SHA-256 integrity hash.');
+  const text=JSON.stringify(bundle,null,2);const link=el('a','Save generated receipt JSON ↓');link.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));link.download='clearstep-receipt.json';
+  const previous=$('exportfile').querySelector('a');if(previous)URL.revokeObjectURL(previous.href);
+  $('exportfile').replaceChildren(link);$('exporttext').textContent=text;$('exportproof').hidden=false;status('Evidence bundle generated with a SHA-256 hash. Use the save link, or copy the JSON below.');
 });
